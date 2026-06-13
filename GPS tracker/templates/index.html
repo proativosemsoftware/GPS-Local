@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Tracker - Alta Frequência</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            background-color: #1a1a1a; 
+            color: white;
+            padding: 20px; 
+        }
+        .card { 
+            background: #2d2d2d; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        h1 { color: #00d4ff; font-size: 24px; }
+        #status { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin: 15px 0;
+            color: #ffcc00; 
+        }
+        .data-box { 
+            background: #111; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #00d4ff;
+            text-align: left;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .footer { margin-top: 20px; font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Rastreador GPS</h1>
+        <div id="status">Iniciando sistema...</div>
+        
+        <div class="data-box" id="data-display">
+            Aguardando sinal...
+        </div>
+
+        <div class="footer">
+            Atualização: 1.0s | HTTPS Ativo
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const displayEl = document.getElementById('data-display');
+
+        // Função principal de captura e envio
+        function updateAndSend() {
+            const options = {
+                enableHighAccuracy: true, // Força uso do hardware de GPS
+                maximumAge: 0,            // Não aceita posições cacheadas
+                timeout: 950              // Desiste se demorar mais que o intervalo de 1s
+            };
+
+            navigator.geolocation.getCurrentPosition((position) => {
+                const payload = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    altitude: position.coords.altitude,
+                    direcao: position.coords.heading
+                };
+
+                // Atualiza a tela do celular
+                statusEl.innerText = "Sinal OK - Transmitindo";
+                statusEl.style.color = "#00ff88";
+                
+                displayEl.innerHTML = `
+                    <b>Lat:</b> ${payload.latitude.toFixed(6)}<br>
+                    <b>Lng:</b> ${payload.longitude.toFixed(6)}<br>
+                    <b>Acc:</b> ±${payload.accuracy.toFixed(1)}m<br>
+                    <b>Alt:</b> ${payload.altitude ? payload.altitude.toFixed(1) + 'm' : 'N/A'}<br>
+                    <b>Dir:</b> ${payload.direcao ? payload.direcao.toFixed(1) + '°' : 'N/A'}
+                `;
+
+                // Envia para o servidor Flask
+                fetch('/update_location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .catch(err => {
+                    console.error("Erro de conexão:", err);
+                    statusEl.innerText = "Erro de Conexão!";
+                    statusEl.style.color = "#ff4444";
+                });
+
+            }, (err) => {
+                statusEl.style.color = "#ff4444";
+                if(err.code === 1) statusEl.innerText = "Permissão Negada!";
+                else if(err.code === 3) statusEl.innerText = "Atualizando...";
+                else statusEl.innerText = "Erro no GPS: " + err.message;
+            }, options);
+        }
+
+        // Verifica suporte e inicia o loop de 1 segundo (1000ms)
+        if ("geolocation" in navigator) {
+            console.log("Sistema iniciado...");
+            // Executa imediatamente a primeira vez
+            updateAndSend();
+            // Define o intervalo para repetir a cada 1 segundo
+            setInterval(updateAndSend, 1000);
+        } else {
+            statusEl.innerText = "GPS Não Suportado";
+            statusEl.style.color = "#ff4444";
+        }
+    </script>
+
+</body>
+</html>
